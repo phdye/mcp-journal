@@ -1,0 +1,39 @@
+# MCP Journal Configuration - Simple Example
+# Copy to your project root as journal_config.toml
+
+[project]
+name = "my-project"
+
+[directories]
+# All paths relative to project root
+journal = "journal"
+configs = "configs"
+logs = "logs"
+snapshots = "snapshots"
+
+[tracking]
+# Glob patterns for config files to track
+config_patterns = ["*.toml", "*.json", "*.yaml", "*.yml", "*.ini"]
+
+# Log categories your project uses (optional)
+log_categories = ["build", "test", "deploy"]
+
+# Build/analysis stages (optional - omit if not applicable)
+stages = ["prepare", "build", "test", "deploy"]
+
+[versions]
+# Commands to capture tool versions
+# Simple form: name = "command"
+python = "python --version"
+node = "node --version"
+git = "git --version"
+
+# Extended form with regex extraction
+# [versions.rust]
+# command = "rustc --version"
+# regex = "rustc (\\d+\\.\\d+\\.\\d+)"
+
+[custom_fields]
+# Additional metadata fields for journal entries
+# ticket = "Issue/ticket reference"
+# environment = "Deployment environment"

@@ -1,0 +1,112 @@
+[project]
+name = "mcp-journal"
+version = "0.1.0"
+description = "MCP server enforcing scientific lab journal discipline for software projects"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "phdyex"}
+]
+maintainers = [
+    {name = "phdyex"}
+]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "journal",
+    "audit",
+    "reproducibility",
+    "lab-notebook",
+    "append-only",
+    "scientific-computing",
+    "devops",
+    "ai-tools",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Software Development :: Version Control",
+    "Topic :: System :: Logging",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "tomli>=2.0.0;python_version<'3.11'",
+    "tomli-w>=1.0.0",
+    "portalocker>=2.0.0",
+]
+
+[project.optional-dependencies]
+mcp = [
+    "mcp>=1.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "hypothesis>=6.0.0",
+]
+all = [
+    "mcp-journal[mcp,dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/phdyex/mcp-journal"
+Documentation = "https://github.com/phdyex/mcp-journal#readme"
+Repository = "https://github.com/phdyex/mcp-journal.git"
+Issues = "https://github.com/phdyex/mcp-journal/issues"
+Changelog = "https://github.com/phdyex/mcp-journal/blob/main/CHANGELOG.md"
+
+[project.scripts]
+mcp-journal = "mcp_journal.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_journal"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/examples",
+    "/LICENSE",
+    "/README.md",
+    "/CHANGELOG.md",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src/mcp_journal"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

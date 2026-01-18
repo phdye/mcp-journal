@@ -2,7 +2,6 @@
 
 import os
 import sys
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -34,11 +33,7 @@ from mcp_journal.models import (
 )
 
 
-@pytest.fixture
-def temp_project():
-    """Create a temporary project directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield Path(tmpdir)
+# Fixtures temp_project, config, and engine are provided by conftest.py
 
 
 # ============ config.py coverage gaps ============
@@ -194,6 +189,56 @@ class TestAtomicWriteCleanup:
         assert not tmp_file.exists()
         # Target file should not exist
         assert not test_file.exists()
+
+
+class TestAtomicWriteErrorBeforeTempFile:
+    """Test atomic_write when error occurs before temp file is created (line 70->72)."""
+
+    def test_atomic_write_error_before_temp_file_created(self, temp_project):
+        """atomic_write handles exception when temp file doesn't exist (line 70->72).
+
+        This tests the branch where an exception is raised but tmp_path.exists()
+        returns False because the temp file was never created.
+        """
+        # Create a FILE where the parent DIRECTORY should be
+        # This will cause mkdir to fail before the temp file is created
+        fake_parent = temp_project / "fake_dir"
+        fake_parent.write_text("I'm a file, not a directory")
+
+        # Now try to write to a file that should be in "fake_dir"
+        test_file = fake_parent / "subdir" / "file.txt"
+
+        with pytest.raises((OSError, NotADirectoryError)):
+            with atomic_write(test_file) as f:
+                f.write("should never get here")
+
+        # Verify temp file was never created (it couldn't be)
+        tmp_file = test_file.with_suffix(".txt.tmp")
+        assert not tmp_file.exists()
+
+    def test_atomic_write_temp_not_exists_on_exception(self, temp_project):
+        """atomic_write skips cleanup if temp file doesn't exist (line 70->72).
+
+        Use mocking to simulate the case where tmp_path.exists() returns False
+        in the exception handler.
+        """
+        test_file = temp_project / "test_file.txt"
+
+        # We need to trigger an exception AND have tmp_path.exists() return False
+        # The cleanest way is to mock Path.exists on the tmp_path to return False
+        original_exists = Path.exists
+
+        def patched_exists(self):
+            # Return False for .tmp files in the exception handler
+            if str(self).endswith(".tmp"):
+                return False
+            return original_exists(self)
+
+        with patch.object(Path, "exists", patched_exists):
+            with pytest.raises(ValueError):
+                with atomic_write(test_file) as f:
+                    f.write("content")
+                    raise ValueError("Simulated error")
 
 
 class TestAtomicWriteWindows:

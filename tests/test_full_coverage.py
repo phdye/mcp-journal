@@ -2,7 +2,6 @@
 
 import os
 import sys
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
@@ -25,11 +24,8 @@ from mcp_journal.models import EntryTemplate, JournalEntry, EntryType, utc_now
 from mcp_journal.tools import execute_tool
 
 
-@pytest.fixture
-def temp_project():
-    """Create a temporary project directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield Path(tmpdir)
+# Fixtures temp_project, config, engine are provided by conftest.py
+# The cleanup_engines autouse fixture ensures all SQLite connections are closed
 
 
 # ============ config.py - Lines 20-21, 131 ============

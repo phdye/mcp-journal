@@ -300,3 +300,212 @@ class TestCausalityProperties:
 
         # Should have found the chain
         assert isinstance(result, dict)
+
+
+class TestQueryProperties:
+    """Property-based tests for query operations (SQLite index)."""
+
+    @given(
+        count=st.integers(min_value=1, max_value=20),
+    )
+    @settings(max_examples=10, deadline=None)
+    def test_query_results_always_sorted(self, count):
+        """Query results are always sorted by timestamp."""
+        engine, _ = make_temp_engine()
+
+        for i in range(count):
+            engine.journal_append(author="test", context=f"Entry {i}")
+
+        # Descending order (default)
+        results_desc = engine.journal_query(order_desc=True)
+        timestamps_desc = [r["timestamp"] for r in results_desc]
+        assert timestamps_desc == sorted(timestamps_desc, reverse=True)
+
+        # Ascending order
+        results_asc = engine.journal_query(order_desc=False)
+        timestamps_asc = [r["timestamp"] for r in results_asc]
+        assert timestamps_asc == sorted(timestamps_asc)
+
+    @given(
+        count=st.integers(min_value=5, max_value=30),
+        limit=st.integers(min_value=1, max_value=10),
+    )
+    @settings(max_examples=15, deadline=None)
+    def test_query_pagination_never_exceeds_limit(self, count, limit):
+        """Query results never exceed the specified limit."""
+        engine, _ = make_temp_engine()
+
+        for i in range(count):
+            engine.journal_append(author="test", context=f"Entry {i}")
+
+        results = engine.journal_query(limit=limit)
+
+        assert len(results) <= limit
+
+    @given(
+        count=st.integers(min_value=5, max_value=30),
+        limit=st.integers(min_value=1, max_value=10),
+        offset=st.integers(min_value=0, max_value=10),
+    )
+    @settings(max_examples=15, deadline=None)
+    def test_query_pagination_with_offset(self, count, limit, offset):
+        """Pagination with offset returns correct subset of results."""
+        engine, _ = make_temp_engine()
+
+        for i in range(count):
+            engine.journal_append(author="test", context=f"Entry {i}")
+
+        results = engine.journal_query(limit=limit, offset=offset)
+
+        # Results should not exceed limit
+        assert len(results) <= limit
+
+        # If offset is beyond data, results should be empty or partial
+        if offset >= count:
+            assert len(results) == 0
+
+    @given(
+        success_count=st.integers(min_value=0, max_value=10),
+        failure_count=st.integers(min_value=0, max_value=10),
+    )
+    @settings(max_examples=15, deadline=None)
+    def test_filter_returns_only_matching_results(self, success_count, failure_count):
+        """Filtering always returns only entries matching the filter."""
+        engine, _ = make_temp_engine()
+
+        for i in range(success_count):
+            engine.journal_append(author="test", context=f"Success {i}", outcome="success")
+        for i in range(failure_count):
+            engine.journal_append(author="test", context=f"Failure {i}", outcome="failure")
+
+        # Filter for success
+        results = engine.journal_query(filters={"outcome": "success"})
+
+        # All results should have outcome=success
+        for r in results:
+            assert r.get("outcome") == "success"
+
+        # Count should match
+        assert len(results) == success_count
+
+    @given(
+        author1_count=st.integers(min_value=1, max_value=10),
+        author2_count=st.integers(min_value=1, max_value=10),
+    )
+    @settings(max_examples=15, deadline=None)
+    def test_aggregate_group_totals_equal_total(self, author1_count, author2_count):
+        """Sum of aggregated group counts equals total count."""
+        engine, _ = make_temp_engine()
+
+        for i in range(author1_count):
+            engine.journal_append(author="alice", context=f"Alice entry {i}")
+        for i in range(author2_count):
+            engine.journal_append(author="bob", context=f"Bob entry {i}")
+
+        stats = engine.journal_stats(group_by="author")
+
+        # Sum of group counts should equal total
+        group_sum = sum(g["count"] for g in stats["groups"])
+        assert group_sum == stats["totals"]["count"]
+        assert group_sum == author1_count + author2_count
+
+
+class TestTextSearchProperties:
+    """Property-based tests for text search."""
+
+    @given(
+        unique_word=st.text(
+            min_size=5, max_size=20,
+            alphabet=st.characters(whitelist_categories=("Ll",))  # lowercase letters only
+        ).filter(lambda x: x.strip() and x.isalpha()),
+    )
+    @settings(max_examples=20, deadline=None)
+    def test_text_search_finds_indexed_content(self, unique_word):
+        """Text search finds entries containing the search term."""
+        engine, _ = make_temp_engine()
+
+        # Create entry with unique word
+        entry = engine.journal_append(
+            author="test",
+            context=f"This entry contains {unique_word} as a searchable term"
+        )
+
+        # Search should find it
+        results = engine.journal_query(text_search=unique_word)
+
+        entry_ids = [r["entry_id"] for r in results]
+        assert entry.entry_id in entry_ids
+
+    @given(
+        count=st.integers(min_value=2, max_value=10),
+    )
+    @settings(max_examples=10, deadline=None)
+    def test_text_search_combined_with_filter(self, count):
+        """Text search combined with filter narrows results correctly."""
+        engine, _ = make_temp_engine()
+
+        # Create entries with same text but different authors
+        for i in range(count):
+            engine.journal_append(
+                author="alice" if i % 2 == 0 else "bob",
+                context=f"CommonSearchTerm entry {i}"
+            )
+
+        # Search with filter
+        results = engine.journal_query(
+            text_search="CommonSearchTerm",
+            filters={"author": "alice"}
+        )
+
+        # All results should be from alice
+        for r in results:
+            assert r["author"] == "alice"
+
+        # Count should be half (rounded up for odd count)
+        expected = (count + 1) // 2
+        assert len(results) == expected
+
+
+class TestIndexConsistencyProperties:
+    """Property-based tests for index consistency."""
+
+    @given(
+        count=st.integers(min_value=1, max_value=20),
+    )
+    @settings(max_examples=10, deadline=None)
+    def test_all_appended_entries_are_queryable(self, count):
+        """Every appended entry can be retrieved via query."""
+        engine, _ = make_temp_engine()
+
+        appended_ids = []
+        for i in range(count):
+            entry = engine.journal_append(author="test", context=f"Entry {i}")
+            appended_ids.append(entry.entry_id)
+
+        # Query all entries
+        results = engine.journal_query(limit=count + 10)
+        queried_ids = [r["entry_id"] for r in results]
+
+        # All appended IDs should be in query results
+        for entry_id in appended_ids:
+            assert entry_id in queried_ids
+
+    @given(
+        count=st.integers(min_value=1, max_value=15),
+    )
+    @settings(max_examples=10, deadline=None)
+    def test_index_and_markdown_entry_count_match(self, count):
+        """Index entry count matches journal file entry count."""
+        engine, _ = make_temp_engine()
+
+        for i in range(count):
+            engine.journal_append(author="test", context=f"Entry {i}")
+
+        # Get count from index (via query)
+        index_results = engine.journal_query(limit=count + 10)
+
+        # Get count from markdown (via journal_read)
+        markdown_results = engine.journal_read()
+
+        assert len(index_results) == len(markdown_results)
+        assert len(index_results) == count

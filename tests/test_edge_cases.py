@@ -1,8 +1,6 @@
 """Edge case tests following comprehensive-testing.md methodology."""
 
-import tempfile
 from datetime import datetime, timezone
-from pathlib import Path
 
 import pytest
 
@@ -16,26 +14,7 @@ from mcp_journal.engine import (
 )
 
 
-@pytest.fixture
-def temp_project():
-    """Create a temporary project directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield Path(tmpdir)
-
-
-@pytest.fixture
-def config(temp_project):
-    """Create a test configuration."""
-    return ProjectConfig(
-        project_name="test-project",
-        project_root=temp_project,
-    )
-
-
-@pytest.fixture
-def engine(config):
-    """Create a test engine."""
-    return JournalEngine(config)
+# Fixtures temp_project, config, and engine are provided by conftest.py
 
 
 class TestJournalAppendEdgeCases:
@@ -482,10 +461,15 @@ class TestTemplateEdgeCases:
         assert entry.template == "no_required"
         assert entry.context == "Static context"
 
-    def test_list_templates_empty(self, engine):
-        """Listing templates when none defined returns empty list."""
+    def test_list_templates_default(self, engine):
+        """Listing templates returns default templates when no custom templates."""
         templates = engine.list_templates()
-        assert templates == []
+        # Default templates are now always available (diagnostic, build, test)
+        assert len(templates) >= 3
+        template_names = {t["name"] for t in templates}
+        assert "diagnostic" in template_names
+        assert "build" in template_names
+        assert "test" in template_names
 
     def test_get_nonexistent_template(self, engine):
         """Getting nonexistent template returns None."""

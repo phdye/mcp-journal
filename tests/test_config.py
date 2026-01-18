@@ -1,6 +1,5 @@
 """Tests for configuration loading."""
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -15,11 +14,7 @@ from mcp_journal.config import (
 )
 
 
-@pytest.fixture
-def temp_project():
-    """Create a temporary project directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield Path(tmpdir)
+# Fixtures temp_project, config, and engine are provided by conftest.py
 
 
 class TestFindConfigFile:
@@ -233,3 +228,79 @@ def custom_tool_test(engine, params):
 
         config = load_config(temp_project, config_path=config_file)
         assert config.project_name == "explicit"
+
+
+class TestDictToConfigPartialBranches:
+    """Tests for dict_to_config partial branches (lines 202->205, 207->209, 209->211, 222->225, 229->226)."""
+
+    def test_project_without_name(self, temp_project):
+        """dict_to_config handles project section without name (line 202->205)."""
+        # Project section exists but without "name" key
+        config_file = temp_project / "journal_config.json"
+        config_file.write_text('{"project": {"description": "no name here"}}')
+
+        config = load_config(temp_project)
+        # Should use default project name
+        assert config.project_name == "unnamed"  # Default
+
+    def test_directories_without_journal(self, temp_project):
+        """dict_to_config handles directories section without journal (line 207->209)."""
+        config_file = temp_project / "journal_config.json"
+        config_file.write_text(
+            '{"project": {"name": "test"}, "directories": {"configs": "my_configs"}}'
+        )
+
+        config = load_config(temp_project)
+        # journal_dir should be default
+        assert config.journal_dir == "journal"  # Default
+        assert config.configs_dir == "my_configs"  # Custom
+
+    def test_directories_without_configs(self, temp_project):
+        """dict_to_config handles directories section without configs (line 209->211)."""
+        config_file = temp_project / "journal_config.json"
+        config_file.write_text(
+            '{"project": {"name": "test"}, "directories": {"journal": "my_journal"}}'
+        )
+
+        config = load_config(temp_project)
+        assert config.journal_dir == "my_journal"  # Custom
+        assert config.configs_dir == "configs"  # Default
+
+    def test_tracking_without_stages(self, temp_project):
+        """dict_to_config handles tracking section without stages (line 222->225)."""
+        config_file = temp_project / "journal_config.json"
+        config_file.write_text(
+            '{"project": {"name": "test"}, "tracking": {"config_patterns": ["*.conf"]}}'
+        )
+
+        config = load_config(temp_project)
+        assert "*.conf" in config.config_patterns
+        # stages should be default (empty list)
+        assert config.stages == []
+
+    def test_versions_with_invalid_type(self, temp_project):
+        """dict_to_config skips versions that are neither string nor dict (line 229->226)."""
+        # This tests the case where versions contains something unexpected
+        # Since JSON/TOML enforce types, this is defensive code
+        # We test via dict_to_config directly
+        from mcp_journal.config import dict_to_config
+
+        data = {
+            "project": {"name": "test"},
+            "versions": {
+                "valid_cmd": "echo hello",  # String - OK
+                "valid_dict": {"command": "echo world"},  # Dict - OK
+                "invalid": 12345,  # Integer - should be skipped
+                "also_invalid": ["list", "of", "things"],  # List - skipped
+            },
+        }
+
+        config = dict_to_config(data, temp_project)
+
+        # Should have 2 version commands (the valid ones)
+        names = [vc.name for vc in config.version_commands]
+        assert "valid_cmd" in names
+        assert "valid_dict" in names
+        # Invalid ones should not be present
+        assert "invalid" not in names
+        assert "also_invalid" not in names

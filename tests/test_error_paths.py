@@ -3,9 +3,6 @@
 Tests all error conditions and exception handling.
 """
 
-import tempfile
-from pathlib import Path
-
 import pytest
 
 from mcp_journal.config import ProjectConfig, EntryTemplateConfig
@@ -19,26 +16,7 @@ from mcp_journal.engine import (
 )
 
 
-@pytest.fixture
-def temp_project():
-    """Create a temporary project directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield Path(tmpdir)
-
-
-@pytest.fixture
-def config(temp_project):
-    """Create a test configuration."""
-    return ProjectConfig(
-        project_name="test-project",
-        project_root=temp_project,
-    )
-
-
-@pytest.fixture
-def engine(config):
-    """Create a test engine."""
-    return JournalEngine(config)
+# Fixtures temp_project, config, and engine are provided by conftest.py
 
 
 class TestInvalidReferenceErrors:

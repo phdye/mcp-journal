@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .config import ProjectConfig
+from .index import JournalIndex
 from .locking import file_lock, locked_atomic_write
 from .models import (
     ConfigArchive,
@@ -66,6 +67,15 @@ class JournalEngine:
     def __init__(self, config: ProjectConfig):
         self.config = config
         self._ensure_directories()
+        # Initialize the SQLite index
+        self._index: Optional[JournalIndex] = None
+
+    @property
+    def index(self) -> JournalIndex:
+        """Lazily initialize and return the journal index."""
+        if self._index is None:
+            self._index = JournalIndex(self.config.get_journal_path())
+        return self._index
 
     def _ensure_directories(self) -> None:
         """Create managed directories if they don't exist."""
@@ -150,6 +160,12 @@ class JournalEngine:
         # Template support
         template: Optional[str] = None,
         template_values: Optional[dict[str, str]] = None,
+        # Diagnostic fields (for tool call tracking)
+        tool: Optional[str] = None,
+        duration_ms: Optional[int] = None,
+        exit_code: Optional[int] = None,
+        command: Optional[str] = None,
+        error_type: Optional[str] = None,
     ) -> JournalEntry:
         """Append a new entry to the journal.
 
@@ -237,6 +253,11 @@ class JournalEngine:
                 log_produced=log_produced,
                 outcome=outcome,
                 template=template,
+                tool=tool,
+                duration_ms=duration_ms,
+                exit_code=exit_code,
+                command=command,
+                error_type=error_type,
             )
 
             # Call hook if defined
@@ -260,6 +281,21 @@ class JournalEngine:
             # Call post hook if defined
             if "post_append" in self.config.hooks:
                 self.config.hooks["post_append"](entry)
+
+            # Index the entry in SQLite
+            diagnostic_fields = {}
+            if tool is not None:
+                diagnostic_fields["tool"] = tool
+            if duration_ms is not None:
+                diagnostic_fields["duration_ms"] = duration_ms
+            if exit_code is not None:
+                diagnostic_fields["exit_code"] = exit_code
+            if command is not None:
+                diagnostic_fields["command"] = command
+            if error_type is not None:
+                diagnostic_fields["error_type"] = error_type
+
+            self.index.index_entry(entry, journal_file, diagnostic_fields if diagnostic_fields else None)
 
         return entry
 
@@ -319,6 +355,9 @@ class JournalEngine:
             else:
                 with open(journal_file, "a", encoding="utf-8") as f:
                     f.write(markdown)
+
+            # Index the amendment entry
+            self.index.index_entry(entry, journal_file)
 
         return entry
 
@@ -693,6 +732,115 @@ class JournalEngine:
 
         return results
 
+    # ========== SQLite Index Query Operations ==========
+
+    def journal_query(
+        self,
+        filters: Optional[dict[str, Any]] = None,
+        text_search: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+        order_by: str = "timestamp",
+        order_desc: bool = True,
+    ) -> list[dict]:
+        """Query journal entries using the SQLite index.
+
+        This is a faster, more flexible alternative to journal_search
+        that uses the SQLite index for efficient querying.
+
+        Args:
+            filters: Dictionary of field=value filters (e.g., {"tool": "bash", "outcome": "failure"})
+            text_search: Full-text search query
+            date_from: Start date (YYYY-MM-DD)
+            date_to: End date (YYYY-MM-DD)
+            limit: Maximum results to return (default: 100)
+            offset: Number of results to skip (default: 0)
+            order_by: Field to order by (default: "timestamp")
+            order_desc: True for descending order (default: True)
+
+        Returns:
+            List of matching entry dictionaries
+        """
+        return self.index.query(
+            filters=filters,
+            text_search=text_search,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+            offset=offset,
+            order_by=order_by,
+            order_desc=order_desc,
+        )
+
+    def journal_stats(
+        self,
+        group_by: Optional[str] = None,
+        aggregations: Optional[list[str]] = None,
+        filters: Optional[dict[str, Any]] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+    ) -> dict:
+        """Get aggregated statistics over journal entries.
+
+        Args:
+            group_by: Field to group by (e.g., "tool", "outcome", "author")
+            aggregations: List of aggregation expressions (e.g., ["count", "avg:duration_ms"])
+            filters: Additional filters
+            date_from: Start date (YYYY-MM-DD)
+            date_to: End date (YYYY-MM-DD)
+
+        Returns:
+            Dictionary with aggregation results including groups and totals
+        """
+        if group_by is None:
+            # Return overall stats
+            return self.index.get_stats()
+
+        return self.index.aggregate(
+            group_by=group_by,
+            aggregations=aggregations,
+            filters=filters,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+    def journal_active(
+        self,
+        threshold_ms: int = 30000,
+        tool_filter: Optional[str] = None,
+    ) -> list[dict]:
+        """Find potentially active or hanging operations.
+
+        This is useful for detecting long-running tool calls that might
+        have hung or operations that weren't properly completed.
+
+        Args:
+            threshold_ms: Duration threshold in milliseconds (default: 30000)
+            tool_filter: Optional tool name filter
+
+        Returns:
+            List of entries that might be active/hanging
+        """
+        return self.index.get_active_operations(
+            threshold_ms=threshold_ms,
+            tool_filter=tool_filter,
+        )
+
+    def rebuild_sqlite_index(self) -> dict:
+        """Rebuild the SQLite index from markdown files.
+
+        This parses all journal markdown files and rebuilds the index.
+        Use this if the index gets out of sync or corrupted.
+
+        Returns:
+            Dictionary with rebuild statistics
+        """
+        return self.index.rebuild_from_markdown(
+            parse_entry_func=self._parse_journal_entries,
+        )
+
     # ========== Index Rebuild ==========
 
     def index_rebuild(
@@ -865,6 +1013,12 @@ class JournalEngine:
             "caused_by": r"\*\*Caused-By\*\*:\s*(.+)",
             "causes": r"\*\*Causes\*\*:\s*(.+)",
             "amends": r"\*\*Amends\*\*:\s*(.+)",
+            # Diagnostic fields
+            "tool": r"\*\*Tool\*\*:\s*(.+)",
+            "duration_ms": r"\*\*Duration\*\*:\s*(\d+)ms",
+            "exit_code": r"\*\*Exit-Code\*\*:\s*(-?\d+)",
+            "command": r"\*\*Command\*\*:\s*(.+)",
+            "error_type": r"\*\*Error-Type\*\*:\s*(.+)",
         }
 
         for field, pattern in patterns.items():
@@ -874,6 +1028,9 @@ class JournalEngine:
                 # Parse comma-separated lists
                 if field in ["caused_by", "causes"]:
                     entry[field] = [v.strip() for v in value.split(",")]
+                # Parse integer fields
+                elif field in ["duration_ms", "exit_code"]:
+                    entry[field] = int(value)
                 else:
                     entry[field] = value
 
@@ -1423,7 +1580,13 @@ Every action is recorded. Nothing is deleted. Full traceability from cause to ef
 5. Call `session_handoff(...)` to generate summary for next session
 
 Use `journal_help(topic="workflow")` for detailed usage patterns.
-Use `journal_help(topic="tools")` for tool reference.""",
+Use `journal_help(topic="tools")` for tool reference.
+
+**Complete Documentation**:
+- User Guide: doc/user-guide.md
+- Configuration: doc/configuration.md
+- CLI Reference: doc/cli-reference.md
+- API Reference: doc/api/README.md (man-page style for each tool)""",
         },
         "principles": {
             "brief": (
@@ -1538,7 +1701,9 @@ session_handoff(include_configs=True, include_logs=True)
 **Help**:
 - `journal_help` - This help system
 
-Use `journal_help(tool="<name>")` for detailed help on any tool.""",
+Use `journal_help(tool="<name>")` for detailed help on any tool.
+
+**API Documentation**: Full man(3) page style documentation available at doc/api/<tool_name>.md""",
         },
         "causality": {
             "brief": (
@@ -1654,6 +1819,51 @@ When `require_templates = true` in config, all entries must use a template.""",
 **Recovery Tools**:
 - `journal_amend()` - Correct entries without editing
 - `index_rebuild()` - Rebuild corrupted INDEX.md""",
+        },
+        "documentation": {
+            "brief": (
+                "Comprehensive documentation available in doc/ directory: "
+                "user-guide.md, configuration.md, cli-reference.md, architecture.md, "
+                "developer-guide.md, and api/*.md for each tool."
+            ),
+            "full": """**Documentation Index**
+
+Complete documentation is available in the `doc/` directory of the project.
+
+**User Documentation**:
+- `doc/user-guide.md` - Installation, configuration, daily usage, best practices
+- `doc/configuration.md` - All configuration options (TOML, JSON, Python)
+- `doc/cli-reference.md` - Command-line interface reference
+
+**Developer Documentation**:
+- `doc/architecture.md` - System design, components, data flow
+- `doc/developer-guide.md` - Contributing, code standards, testing
+
+**API Reference** (`doc/api/`):
+Man(3) page style documentation for each MCP tool:
+- `journal_append.md` - Append entries
+- `journal_amend.md` - Add amendments
+- `journal_read.md` - Read entries
+- `journal_query.md` - Query with filters
+- `journal_search.md` - Full-text search
+- `journal_stats.md` - Aggregated statistics
+- `journal_active.md` - Find long-running operations
+- `config_archive.md` - Archive configs
+- `config_activate.md` - Restore configs
+- `config_diff.md` - Compare configs
+- `log_preserve.md` - Preserve logs
+- `state_snapshot.md` - Capture state
+- `timeline.md` - Chronological view
+- `trace_causality.md` - Trace relationships
+- `session_handoff.md` - Generate handoffs
+- `index_rebuild.md` - Rebuild indexes
+- `list_templates.md` - List templates
+- `get_template.md` - Template details
+- `journal_help.md` - Help system
+
+**For AI Agents**:
+Documentation is included with the package for runtime access.
+Use this help system for quick reference, and read doc/api/*.md for complete details.""",
         },
     }
 

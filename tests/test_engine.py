@@ -19,26 +19,7 @@ from mcp_journal.engine import (
 from mcp_journal.models import EntryType
 
 
-@pytest.fixture
-def temp_project():
-    """Create a temporary project directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield Path(tmpdir)
-
-
-@pytest.fixture
-def config(temp_project):
-    """Create a test configuration."""
-    return ProjectConfig(
-        project_name="test-project",
-        project_root=temp_project,
-    )
-
-
-@pytest.fixture
-def engine(config):
-    """Create a test engine."""
-    return JournalEngine(config)
+# Fixtures temp_project, config, and engine are now provided by conftest.py
 
 
 class TestJournalAppend:
@@ -673,7 +654,10 @@ class TestTemplates:
     @pytest.fixture
     def engine_with_templates(self, config_with_templates):
         """Engine with template support."""
-        return JournalEngine(config_with_templates)
+        eng = JournalEngine(config_with_templates)
+        yield eng
+        if eng._index is not None:
+            eng._index.close()
 
     def test_list_templates(self, engine_with_templates):
         """Can list available templates."""
@@ -749,7 +733,10 @@ class TestTemplates:
     @pytest.fixture
     def engine_require_templates(self, config_require_templates):
         """Engine that requires templates."""
-        return JournalEngine(config_require_templates)
+        eng = JournalEngine(config_require_templates)
+        yield eng
+        if eng._index is not None:
+            eng._index.close()
 
     def test_require_templates_enforced(self, engine_require_templates):
         """When require_templates=True, entries without template are rejected."""

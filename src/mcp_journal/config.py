@@ -45,6 +45,41 @@ class EntryTemplateConfig:
     default_outcome: Optional[str] = None
 
 
+# Default templates available to all projects
+DEFAULT_TEMPLATES = {
+    "diagnostic": EntryTemplateConfig(
+        name="diagnostic",
+        description="Tool call diagnostic entry for tracking command execution",
+        context="Executing {tool} command",
+        action="{command}",
+        observation="Exit code: {exit_code}, Duration: {duration_ms}ms",
+        analysis="{analysis}",
+        required_fields=["tool", "status"],
+        optional_fields=["command", "duration_ms", "exit_code", "error_type", "analysis"],
+        default_outcome=None,  # Will be set based on status
+    ),
+    "build": EntryTemplateConfig(
+        name="build",
+        description="Build operation entry",
+        context="Building {target}",
+        intent="Compile and link {target} with {config}",
+        action="Running build command",
+        required_fields=["target"],
+        optional_fields=["config", "flags"],
+        default_outcome=None,
+    ),
+    "test": EntryTemplateConfig(
+        name="test",
+        description="Test execution entry",
+        context="Running tests for {target}",
+        intent="Verify {target} functionality",
+        required_fields=["target"],
+        optional_fields=["test_filter", "flags"],
+        default_outcome=None,
+    ),
+}
+
+
 @dataclass
 class ProjectConfig:
     """Configuration for a project's journal."""
@@ -70,8 +105,8 @@ class ProjectConfig:
     # Custom metadata schema (additional fields for entries)
     custom_fields: dict[str, str] = field(default_factory=dict)  # name -> description
 
-    # Templates
-    templates: dict[str, EntryTemplateConfig] = field(default_factory=dict)
+    # Templates (includes default templates unless overridden)
+    templates: dict[str, EntryTemplateConfig] = field(default_factory=lambda: dict(DEFAULT_TEMPLATES))
     require_templates: bool = False  # If True, all entries must use a template
 
     # Hooks (populated from Python config)
@@ -201,7 +236,7 @@ def dict_to_config(data: dict[str, Any], project_root: Path) -> ProjectConfig:
     if "custom_fields" in data:
         config.custom_fields = data["custom_fields"]
 
-    # Parse templates
+    # Parse templates (merge with defaults, user templates override defaults)
     if "templates" in data:
         templates_data = data["templates"]
         if "require" in templates_data:
@@ -223,6 +258,13 @@ def dict_to_config(data: dict[str, Any], project_root: Path) -> ProjectConfig:
                     optional_fields=tmpl_data.get("optional_fields", []),
                     default_outcome=tmpl_data.get("default_outcome"),
                 )
+
+        # Allow disabling default templates by setting them to null/false in config
+        if "disable_defaults" in templates_data and templates_data["disable_defaults"]:
+            # Remove default templates
+            for name in list(DEFAULT_TEMPLATES.keys()):
+                if name not in templates_data:
+                    config.templates.pop(name, None)
 
     return config
 

@@ -78,6 +78,13 @@ class JournalEntry:
     # Template used (if any)
     template: Optional[str] = None
 
+    # Diagnostic fields (for tool call tracking)
+    tool: Optional[str] = None           # Tool name (bash, read_file, etc.)
+    duration_ms: Optional[int] = None    # Duration in milliseconds
+    exit_code: Optional[int] = None      # Exit code for commands
+    command: Optional[str] = None        # Command executed
+    error_type: Optional[str] = None     # Type of error if failure
+
     def to_markdown(self) -> str:
         """Render entry as markdown."""
         lines = [
@@ -100,6 +107,18 @@ class JournalEntry:
             lines.append(f"**Caused-By**: {', '.join(self.caused_by)}")
         if self.causes:
             lines.append(f"**Causes**: {', '.join(self.causes)}")
+
+        # Add diagnostic metadata if present
+        if self.tool:
+            lines.append(f"**Tool**: {self.tool}")
+        if self.duration_ms is not None:
+            lines.append(f"**Duration**: {self.duration_ms}ms")
+        if self.exit_code is not None:
+            lines.append(f"**Exit-Code**: {self.exit_code}")
+        if self.command:
+            lines.append(f"**Command**: {self.command}")
+        if self.error_type:
+            lines.append(f"**Error-Type**: {self.error_type}")
 
         lines.append("")
 
@@ -165,6 +184,11 @@ class JournalEntry:
             "log_produced": self.log_produced,
             "outcome": self.outcome,
             "template": self.template,
+            "tool": self.tool,
+            "duration_ms": self.duration_ms,
+            "exit_code": self.exit_code,
+            "command": self.command,
+            "error_type": self.error_type,
         }
 
 

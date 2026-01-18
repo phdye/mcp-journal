@@ -1,6 +1,6 @@
 [project]
 name = "mcp-journal"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server enforcing scientific lab journal discipline for software projects"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -64,7 +64,7 @@ all = [
 
 [project.urls]
 Homepage = "https://github.com/phdyex/mcp-journal"
-Documentation = "https://github.com/phdyex/mcp-journal#readme"
+Documentation = "https://github.com/phdyex/mcp-journal/tree/main/doc"
 Repository = "https://github.com/phdyex/mcp-journal.git"
 Issues = "https://github.com/phdyex/mcp-journal/issues"
 Changelog = "https://github.com/phdyex/mcp-journal/blob/main/CHANGELOG.md"
@@ -84,10 +84,15 @@ include = [
     "/src",
     "/tests",
     "/examples",
+    "/doc",
     "/LICENSE",
     "/README.md",
     "/CHANGELOG.md",
 ]
+
+# Include documentation in wheel for runtime access
+[tool.hatch.build.targets.wheel.shared-data]
+"doc" = "share/mcp-journal/doc"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

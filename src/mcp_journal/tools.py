@@ -91,6 +91,27 @@ def make_tools(engine: JournalEngine) -> dict[str, dict]:
                     "type": "object",
                     "description": "Values to fill template placeholders",
                 },
+                # Diagnostic fields for tool call tracking
+                "tool": {
+                    "type": "string",
+                    "description": "Tool name (e.g., bash, read_file, write_file)",
+                },
+                "duration_ms": {
+                    "type": "integer",
+                    "description": "Duration of operation in milliseconds",
+                },
+                "exit_code": {
+                    "type": "integer",
+                    "description": "Exit code for commands",
+                },
+                "command": {
+                    "type": "string",
+                    "description": "Command that was executed",
+                },
+                "error_type": {
+                    "type": "string",
+                    "description": "Type of error if operation failed",
+                },
             },
             "required": ["author"],
         },
@@ -513,6 +534,117 @@ def make_tools(engine: JournalEngine) -> dict[str, dict]:
         },
     }
 
+    # ========== journal_query (SQLite index) ==========
+    tools["journal_query"] = {
+        "name": "journal_query",
+        "description": "Query journal entries using the SQLite index. Supports filtering, full-text search, and pagination.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "filters": {
+                    "type": "object",
+                    "description": "Field filters (e.g., {'tool': 'bash', 'outcome': 'failure'})",
+                },
+                "text_search": {
+                    "type": "string",
+                    "description": "Full-text search query across entry content",
+                },
+                "date_from": {
+                    "type": "string",
+                    "description": "Start date (YYYY-MM-DD)",
+                },
+                "date_to": {
+                    "type": "string",
+                    "description": "End date (YYYY-MM-DD)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum results to return (default: 100)",
+                    "default": 100,
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of results to skip for pagination (default: 0)",
+                    "default": 0,
+                },
+                "order_by": {
+                    "type": "string",
+                    "enum": ["timestamp", "date", "author", "entry_type", "outcome", "tool", "entry_id"],
+                    "description": "Field to order results by (default: timestamp)",
+                    "default": "timestamp",
+                },
+                "order_desc": {
+                    "type": "boolean",
+                    "description": "True for descending order (default: true)",
+                    "default": True,
+                },
+            },
+        },
+    }
+
+    # ========== journal_stats ==========
+    tools["journal_stats"] = {
+        "name": "journal_stats",
+        "description": "Get aggregated statistics over journal entries. Group by tool, outcome, author, etc.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "group_by": {
+                    "type": "string",
+                    "enum": ["tool", "outcome", "author", "entry_type", "date", "template"],
+                    "description": "Field to group statistics by. If not specified, returns overall stats.",
+                },
+                "aggregations": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Aggregation expressions (e.g., ['count', 'avg:duration_ms', 'max:duration_ms'])",
+                },
+                "filters": {
+                    "type": "object",
+                    "description": "Additional filters to apply before aggregation",
+                },
+                "date_from": {
+                    "type": "string",
+                    "description": "Start date (YYYY-MM-DD)",
+                },
+                "date_to": {
+                    "type": "string",
+                    "description": "End date (YYYY-MM-DD)",
+                },
+            },
+        },
+    }
+
+    # ========== journal_active ==========
+    tools["journal_active"] = {
+        "name": "journal_active",
+        "description": "Find potentially active or hanging operations based on duration or missing outcomes.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "threshold_ms": {
+                    "type": "integer",
+                    "description": "Duration threshold in milliseconds (default: 30000)",
+                    "default": 30000,
+                },
+                "tool_filter": {
+                    "type": "string",
+                    "description": "Filter to specific tool type (e.g., 'bash')",
+                },
+            },
+        },
+    }
+
+    # ========== rebuild_sqlite_index ==========
+    tools["rebuild_sqlite_index"] = {
+        "name": "rebuild_sqlite_index",
+        "description": "Rebuild the SQLite index from markdown files. Use if index is out of sync or corrupted.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    }
+
     return tools
 
 
@@ -544,6 +676,12 @@ async def execute_tool(engine: JournalEngine, name: str, arguments: dict[str, An
                 outcome=arguments.get("outcome"),
                 template=arguments.get("template"),
                 template_values=arguments.get("template_values"),
+                # Diagnostic fields
+                tool=arguments.get("tool"),
+                duration_ms=arguments.get("duration_ms"),
+                exit_code=arguments.get("exit_code"),
+                command=arguments.get("command"),
+                error_type=arguments.get("error_type"),
             )
             return {
                 "success": True,
@@ -745,6 +883,55 @@ async def execute_tool(engine: JournalEngine, name: str, arguments: dict[str, An
             return {
                 "success": result.get("type") != "error",
                 **result,
+            }
+
+        elif name == "journal_query":
+            results = engine.journal_query(
+                filters=arguments.get("filters"),
+                text_search=arguments.get("text_search"),
+                date_from=arguments.get("date_from"),
+                date_to=arguments.get("date_to"),
+                limit=arguments.get("limit", 100),
+                offset=arguments.get("offset", 0),
+                order_by=arguments.get("order_by", "timestamp"),
+                order_desc=arguments.get("order_desc", True),
+            )
+            return {
+                "success": True,
+                "count": len(results),
+                "results": results,
+            }
+
+        elif name == "journal_stats":
+            stats = engine.journal_stats(
+                group_by=arguments.get("group_by"),
+                aggregations=arguments.get("aggregations"),
+                filters=arguments.get("filters"),
+                date_from=arguments.get("date_from"),
+                date_to=arguments.get("date_to"),
+            )
+            return {
+                "success": True,
+                **stats,
+            }
+
+        elif name == "journal_active":
+            results = engine.journal_active(
+                threshold_ms=arguments.get("threshold_ms", 30000),
+                tool_filter=arguments.get("tool_filter"),
+            )
+            return {
+                "success": True,
+                "count": len(results),
+                "results": results,
+            }
+
+        elif name == "rebuild_sqlite_index":
+            stats = engine.rebuild_sqlite_index()
+            return {
+                "success": True,
+                "message": "SQLite index rebuilt from markdown files",
+                **stats,
             }
 
         else:

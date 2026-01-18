@@ -1,8 +1,5 @@
 """Tests for MCP tool definitions and execution."""
 
-import tempfile
-from pathlib import Path
-
 import pytest
 
 from mcp_journal.config import ProjectConfig, EntryTemplateConfig
@@ -10,26 +7,7 @@ from mcp_journal.engine import JournalEngine
 from mcp_journal.tools import make_tools, execute_tool
 
 
-@pytest.fixture
-def temp_project():
-    """Create a temporary project directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield Path(tmpdir)
-
-
-@pytest.fixture
-def config(temp_project):
-    """Create a test configuration."""
-    return ProjectConfig(
-        project_name="test-project",
-        project_root=temp_project,
-    )
-
-
-@pytest.fixture
-def engine(config):
-    """Create a test engine."""
-    return JournalEngine(config)
+# Fixtures temp_project, config, and engine are provided by conftest.py
 
 
 class TestMakeTools:

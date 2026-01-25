@@ -645,6 +645,90 @@ def make_tools(engine: JournalEngine) -> dict[str, dict]:
         },
     }
 
+    # ========== Session Journal Tools ==========
+    # These operate on the shared session journal at ~/.claude/session-journal/
+
+    tools["session_journal_query"] = {
+        "name": "session_journal_query",
+        "description": "Query the session journal (shared JSONL logs from MCP servers). Use to diagnose tool hangs, view recent operations, or analyze performance.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "src": {
+                    "type": "string",
+                    "description": "Filter by source (e.g., 'mcp-cygwin', 'mcp-journal')",
+                },
+                "ev": {
+                    "type": "string",
+                    "description": "Filter by event type (e.g., 'tool_start', 'tool_end', 'hang_detected')",
+                },
+                "tool": {
+                    "type": "string",
+                    "description": "Filter by tool name (e.g., 'bash', 'read_file')",
+                },
+                "since": {
+                    "type": "string",
+                    "description": "Filter entries after this ISO timestamp",
+                },
+                "until": {
+                    "type": "string",
+                    "description": "Filter entries before this ISO timestamp",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum results (default: 100)",
+                    "default": 100,
+                },
+            },
+        },
+    }
+
+    tools["session_journal_stats"] = {
+        "name": "session_journal_stats",
+        "description": "Get statistics from the session journal index. Shows totals, event types, sources, and top tools.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    }
+
+    tools["session_journal_pending"] = {
+        "name": "session_journal_pending",
+        "description": "List pending operations (tool_start without tool_end). Useful for identifying currently running or hung operations.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    }
+
+    tools["session_journal_hangs"] = {
+        "name": "session_journal_hangs",
+        "description": "List detected hang events. These are automatically generated when a tool_start has no matching tool_end after timeout.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "since": {
+                    "type": "string",
+                    "description": "Filter hangs after this ISO timestamp",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum results (default: 50)",
+                    "default": 50,
+                },
+            },
+        },
+    }
+
+    tools["session_journal_sync"] = {
+        "name": "session_journal_sync",
+        "description": "Manually trigger session journal sync. Indexes new JSONL entries and checks for hangs. Normally runs automatically in background.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    }
+
     return tools
 
 
@@ -931,6 +1015,95 @@ async def execute_tool(engine: JournalEngine, name: str, arguments: dict[str, An
             return {
                 "success": True,
                 "message": "SQLite index rebuilt from markdown files",
+                **stats,
+            }
+
+        # ========== Session Journal Tools ==========
+        elif name == "session_journal_query":
+            from .session_journal_watcher import SessionJournalIndex
+            index = SessionJournalIndex()
+            results = index.query(
+                src=arguments.get("src"),
+                ev=arguments.get("ev"),
+                tool=arguments.get("tool"),
+                since=arguments.get("since"),
+                until=arguments.get("until"),
+                limit=arguments.get("limit", 100),
+            )
+            index.close()
+            return {
+                "success": True,
+                "count": len(results),
+                "results": results,
+            }
+
+        elif name == "session_journal_stats":
+            from .session_journal_watcher import SessionJournalIndex
+            index = SessionJournalIndex()
+            stats = index.get_stats()
+            index.close()
+            return {
+                "success": True,
+                **stats,
+            }
+
+        elif name == "session_journal_pending":
+            from .session_journal_watcher import SessionJournalIndex
+            index = SessionJournalIndex()
+            conn = index._get_connection()
+            with index._lock:
+                cursor = conn.execute("""
+                    SELECT id, ts, src, tool, timeout_at
+                    FROM pending_starts
+                    ORDER BY ts DESC
+                """)
+                pending = [dict(row) for row in cursor.fetchall()]
+            index.close()
+            return {
+                "success": True,
+                "count": len(pending),
+                "pending": pending,
+            }
+
+        elif name == "session_journal_hangs":
+            from .session_journal_watcher import SessionJournalIndex
+            index = SessionJournalIndex()
+            since = arguments.get("since")
+            limit = arguments.get("limit", 50)
+
+            conditions = ["ev = 'hang_detected'"]
+            params: list = []
+            if since:
+                conditions.append("ts >= ?")
+                params.append(since)
+
+            conn = index._get_connection()
+            with index._lock:
+                cursor = conn.execute(f"""
+                    SELECT * FROM entries
+                    WHERE {" AND ".join(conditions)}
+                    ORDER BY ts DESC
+                    LIMIT ?
+                """, params + [limit])
+                hangs = [dict(row) for row in cursor.fetchall()]
+            index.close()
+            return {
+                "success": True,
+                "count": len(hangs),
+                "hangs": hangs,
+            }
+
+        elif name == "session_journal_sync":
+            from .session_journal_watcher import SessionJournalWatcher
+            watcher = SessionJournalWatcher()
+            # Do a single sync pass
+            watcher._poll_files()
+            watcher._check_hangs()
+            stats = watcher.index.get_stats()
+            watcher.index.close()
+            return {
+                "success": True,
+                "message": "Session journal synced",
                 **stats,
             }
 

@@ -25,6 +25,7 @@ except ImportError:
 from .config import ProjectConfig, load_config
 from .engine import JournalEngine
 from .tools import execute_tool, make_tools
+from .session_journal_watcher import SessionJournalWatcher
 
 
 def create_server(config: ProjectConfig) -> "Server":
@@ -115,12 +116,19 @@ async def run_server(config: ProjectConfig) -> None:
 
     server = create_server(config)  # pragma: no cover
 
-    async with stdio_server() as (read_stream, write_stream):  # pragma: no cover
-        await server.run(  # pragma: no cover
-            read_stream,
-            write_stream,
-            server.create_initialization_options(),
-        )
+    # Start the session journal watcher in background
+    watcher = SessionJournalWatcher()  # pragma: no cover
+    watcher.start()  # pragma: no cover
+
+    try:  # pragma: no cover
+        async with stdio_server() as (read_stream, write_stream):  # pragma: no cover
+            await server.run(  # pragma: no cover
+                read_stream,
+                write_stream,
+                server.create_initialization_options(),
+            )
+    finally:  # pragma: no cover
+        watcher.stop()  # pragma: no cover
 
 
 def get_skills_source_dir() -> Path:

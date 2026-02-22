@@ -69,7 +69,14 @@ def temp_project():
     # Clear any stale refs from previous tests
     _engine_refs = [ref for ref in _engine_refs if ref() is not None]
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    # On Windows, SQLite may hold file handles even after close(), especially
+    # on Python 3.13+. Use ignore_cleanup_errors to prevent teardown failures.
+    # This parameter is only available in Python 3.10+.
+    td_kwargs = {}
+    if sys.version_info >= (3, 10):
+        td_kwargs["ignore_cleanup_errors"] = True
+
+    with tempfile.TemporaryDirectory(**td_kwargs) as tmpdir:
         yield Path(tmpdir)
         # Clean up engines BEFORE the temp directory is deleted
         cleanup_all_engines()

@@ -1,7 +1,9 @@
 """Shared pytest fixtures for mcp-journal tests."""
 
 import gc
+import sys
 import tempfile
+import time
 import weakref
 from pathlib import Path
 
@@ -52,6 +54,12 @@ def cleanup_all_engines():
 
     # Force another GC pass to release file handles (important on Windows)
     gc.collect()
+
+    # On Windows, add a small delay to ensure file handles are released
+    # This is especially needed for Python 3.13+ which has different GC timing
+    if sys.platform == "win32":
+        time.sleep(0.1)
+        gc.collect()
 
 
 @pytest.fixture

@@ -174,10 +174,14 @@ class JournalIndex:
         """
         if self._connection is not None:
             try:
+                # Commit any pending transactions
+                self._connection.commit()
                 # Checkpoint WAL to merge it into main database
                 self._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 # Switch to DELETE mode to remove WAL files
                 self._connection.execute("PRAGMA journal_mode = DELETE")
+                # Final commit to ensure journal mode change is persisted
+                self._connection.commit()
             except Exception:
                 pass  # Ignore errors during cleanup
             self._connection.close()

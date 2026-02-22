@@ -513,8 +513,16 @@ class JournalEngine:
         logs_dir.mkdir(parents=True, exist_ok=True)
         timestamp_str = now.strftime("%Y-%m-%d.%H%M%S")
         cat_part = f"{category}." if category else ""
-        preserved_name = f"{cat_part}{timestamp_str}.{outcome_enum.value}.log"
+        base_name = f"{cat_part}{timestamp_str}.{outcome_enum.value}"
+        preserved_name = f"{base_name}.log"
         preserved_path = logs_dir / preserved_name
+
+        # Handle filename collision (e.g., multiple logs in same second)
+        counter = 1
+        while preserved_path.exists():
+            preserved_name = f"{base_name}.{counter}.log"
+            preserved_path = logs_dir / preserved_name
+            counter += 1
 
         # Move file to logs directory
         with file_lock(preserved_path):

@@ -39,14 +39,14 @@ from mcp_journal.models import (
 # ============ config.py coverage gaps ============
 
 class TestConfigTomliImport:
-    """Test tomli import fallback."""
+    """Test tomllib import fallback."""
 
     def test_load_toml_without_tomli(self, temp_project):
-        """Load toml raises ImportError when tomli unavailable."""
+        """Load toml raises ImportError when tomllib unavailable."""
         import mcp_journal.config as config_module
 
-        original_tomli = config_module.tomli
-        config_module.tomli = None
+        original_tomllib = config_module.tomllib
+        config_module.tomllib = None
 
         try:
             toml_file = temp_project / "test.toml"
@@ -55,7 +55,7 @@ class TestConfigTomliImport:
             with pytest.raises(ImportError, match="tomli required"):
                 load_toml_config(toml_file)
         finally:
-            config_module.tomli = original_tomli
+            config_module.tomllib = original_tomllib
 
 
 class TestPythonConfigLoading:

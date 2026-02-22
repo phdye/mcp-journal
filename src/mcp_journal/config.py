@@ -15,10 +15,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+# Python 3.11+ has tomllib in stdlib; fall back to tomli for older versions
 try:
-    import tomli
-except ImportError:  # pragma: no cover
-    tomli = None
+    import tomllib  # Python 3.11+
+except ImportError:
+    try:
+        import tomli as tomllib  # Python <3.11
+    except ImportError:  # pragma: no cover
+        tomllib = None
 
 
 @dataclass
@@ -139,10 +143,10 @@ class ProjectConfig:
 
 def load_toml_config(path: Path) -> dict[str, Any]:
     """Load configuration from TOML file."""
-    if tomli is None:
+    if tomllib is None:
         raise ImportError("tomli required for TOML config: pip install tomli")
     with open(path, "rb") as f:
-        return tomli.load(f)
+        return tomllib.load(f)
 
 
 def load_json_config(path: Path) -> dict[str, Any]:

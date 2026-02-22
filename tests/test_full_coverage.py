@@ -31,15 +31,15 @@ from mcp_journal.tools import execute_tool
 # ============ config.py - Lines 20-21, 131 ============
 
 class TestConfigTomliNotInstalled:
-    """Test config behavior when tomli is not installed."""
+    """Test config behavior when tomllib is not installed."""
 
     def test_tomli_import_error_path(self, temp_project):
-        """Verify the tomli = None path is covered."""
+        """Verify the tomllib = None path is covered."""
         import mcp_journal.config as config_module
 
-        # Force tomli to None
-        original_tomli = config_module.tomli
-        config_module.tomli = None
+        # Force tomllib to None
+        original_tomllib = config_module.tomllib
+        config_module.tomllib = None
 
         try:
             toml_file = temp_project / "test.toml"
@@ -48,7 +48,7 @@ class TestConfigTomliNotInstalled:
             with pytest.raises(ImportError, match="tomli required"):
                 load_toml_config(toml_file)
         finally:
-            config_module.tomli = original_tomli
+            config_module.tomllib = original_tomllib
 
 
 class TestPythonConfigSpecNone:

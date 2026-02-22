@@ -167,8 +167,19 @@ class JournalIndex:
             self._init_schema(conn)
 
     def close(self) -> None:
-        """Close the database connection."""
+        """Close the database connection.
+
+        On Windows, we need to checkpoint WAL and switch to DELETE journal
+        mode before closing to ensure all file handles are released.
+        """
         if self._connection is not None:
+            try:
+                # Checkpoint WAL to merge it into main database
+                self._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                # Switch to DELETE mode to remove WAL files
+                self._connection.execute("PRAGMA journal_mode = DELETE")
+            except Exception:
+                pass  # Ignore errors during cleanup
             self._connection.close()
             self._connection = None
 

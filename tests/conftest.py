@@ -50,6 +50,9 @@ def cleanup_all_engines():
     # Clear the refs list
     _engine_refs = []
 
+    # Force another GC pass to release file handles (important on Windows)
+    gc.collect()
+
 
 @pytest.fixture
 def temp_project():

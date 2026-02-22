@@ -440,13 +440,18 @@ class TestIndexRebuildEdgeCases:
     """Test index_rebuild edge cases."""
 
     def test_index_rebuild_empty_directory(self, temp_project):
-        """index_rebuild handles empty directory."""
+        """index_rebuild handles empty directory and non-existent directory."""
         config = ProjectConfig(project_root=temp_project)
         engine = JournalEngine(config)
 
-        # No files in configs directory
+        # configs/ doesn't exist (lazy creation) - should skip
         result = engine.index_rebuild(directory="configs")
+        assert result["action"] == "skipped_no_directory"
+        assert result["files_found"] == 0
 
+        # Now create the directory and rebuild on empty directory
+        config.get_configs_path().mkdir(parents=True, exist_ok=True)
+        result = engine.index_rebuild(directory="configs")
         assert result["action"] == "rebuilt"
         assert result["files_found"] == 0
 
@@ -866,7 +871,7 @@ class TestJournalAmendNewFile:
         entry = engine.journal_append(author="test", context="Original")
 
         # Rename the journal file to simulate it being from yesterday
-        journal_dir = temp_project / "journal"
+        journal_dir = temp_project / "a" / "journal"
         today_file = list(journal_dir.glob("*.md"))[0]
         yesterday = (utc_now() - timedelta(days=1)).strftime("%Y-%m-%d")
         yesterday_file = journal_dir / f"{yesterday}.md"
@@ -1085,7 +1090,7 @@ class TestTraceCausalityBackwardDepth:
         )
 
         # Manipulate the journal file to add a fake caused_by reference
-        journal_dir = temp_project / "journal"
+        journal_dir = temp_project / "a" / "journal"
         journal_file = list(journal_dir.glob("*.md"))[0]
         content = journal_file.read_text()
 

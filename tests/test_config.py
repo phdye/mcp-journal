@@ -252,7 +252,7 @@ class TestDictToConfigPartialBranches:
 
         config = load_config(temp_project)
         # journal_dir should be default
-        assert config.journal_dir == "journal"  # Default
+        assert config.journal_dir == "a/journal"  # Default
         assert config.configs_dir == "my_configs"  # Custom
 
     def test_directories_without_configs(self, temp_project):
@@ -264,7 +264,7 @@ class TestDictToConfigPartialBranches:
 
         config = load_config(temp_project)
         assert config.journal_dir == "my_journal"  # Custom
-        assert config.configs_dir == "configs"  # Default
+        assert config.configs_dir == "a/configs"  # Default
 
     def test_tracking_without_stages(self, temp_project):
         """dict_to_config handles tracking section without stages (line 222->225)."""

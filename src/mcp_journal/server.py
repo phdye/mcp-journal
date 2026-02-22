@@ -540,9 +540,13 @@ def main() -> None:
     project_root = args.project_root.resolve()
 
     if args.init:
-        # Initialize journal structure
+        # Initialize journal structure - explicitly create all directories
         config = ProjectConfig(project_root=project_root)
-        engine = JournalEngine(config)
+        # Create all directories (engine only creates journal/ lazily now)
+        config.get_journal_path().mkdir(parents=True, exist_ok=True)
+        config.get_configs_path().mkdir(parents=True, exist_ok=True)
+        config.get_logs_path().mkdir(parents=True, exist_ok=True)
+        config.get_snapshots_path().mkdir(parents=True, exist_ok=True)
         print(f"Initialized journal directories in {project_root}")
         print(f"  - {config.journal_dir}/")
         print(f"  - {config.configs_dir}/")

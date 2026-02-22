@@ -24,7 +24,7 @@ from mcp_journal.models import EntryType, JournalEntry
 @pytest.fixture
 def journal_index(temp_project):
     """Create a standalone journal index."""
-    journal_path = temp_project / "journal"
+    journal_path = temp_project / "a" / "journal"
     journal_path.mkdir(parents=True, exist_ok=True)
     index = JournalIndex(journal_path)
     yield index
@@ -36,7 +36,7 @@ class TestSchemaVersionMigration:
 
     def test_migrate_from_version_zero(self, temp_project):
         """Test migration when schema_version table exists but is empty."""
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
         journal_path.mkdir(parents=True, exist_ok=True)
         db_path = journal_path / ".index.db"
 
@@ -60,7 +60,7 @@ class TestSchemaVersionMigration:
 
     def test_migrate_from_old_version(self, temp_project):
         """Test migration when schema version is older than current."""
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
         journal_path.mkdir(parents=True, exist_ok=True)
         db_path = journal_path / ".index.db"
 
@@ -89,7 +89,7 @@ class TestSchemaVersionMigration:
         This covers the else branch at line 61 when row is not None AND
         row[0] >= SCHEMA_VERSION.
         """
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
         journal_path.mkdir(parents=True, exist_ok=True)
 
         # First, create a properly initialized index
@@ -122,7 +122,7 @@ class TestSchemaVersionMigration:
 
         This covers the implicit return when from_version is already at version 1.
         """
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
         journal_path.mkdir(parents=True, exist_ok=True)
         db_path = journal_path / ".index.db"
 
@@ -183,7 +183,7 @@ class TestSchemaVersionMigration:
 
         This directly calls _migrate_schema to cover the early return path.
         """
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
         journal_path.mkdir(parents=True, exist_ok=True)
 
         # Create an index normally
@@ -219,7 +219,7 @@ class TestDeleteEntry:
             entry_type=EntryType.ENTRY,
             context="To be deleted",
         )
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
         journal_index.index_entry(entry, journal_file)
 
@@ -260,7 +260,7 @@ class TestAggregateValidation:
             author="test",
             entry_type=EntryType.ENTRY,
         )
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
         journal_index.index_entry(entry, journal_file)
 
@@ -269,7 +269,7 @@ class TestAggregateValidation:
 
     def test_aggregate_with_avg_aggregation(self, journal_index, temp_project):
         """Aggregate with avg:field style aggregation."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         for i in range(3):
@@ -297,7 +297,7 @@ class TestAggregateValidation:
 
     def test_aggregate_with_invalid_func_ignored(self, journal_index, temp_project):
         """Aggregate with invalid function is silently ignored."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -321,7 +321,7 @@ class TestAggregateValidation:
         self, journal_index, temp_project
     ):
         """Aggregate with invalid field name (injection attempt) is ignored."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -351,7 +351,7 @@ class TestAggregateValidation:
         self, journal_index, temp_project
     ):
         """When all aggregations are invalid, falls back to count."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -375,7 +375,7 @@ class TestAggregateValidation:
 
     def test_aggregate_with_filters(self, journal_index, temp_project):
         """Aggregate with filters dict."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         for i, outcome in enumerate(["success", "success", "failure"]):
@@ -398,7 +398,7 @@ class TestAggregateValidation:
 
     def test_aggregate_with_date_range(self, journal_index, temp_project):
         """Aggregate with date_from and date_to filters."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -423,7 +423,7 @@ class TestAggregateValidation:
         self, journal_index, temp_project
     ):
         """Aggregate filters with None values are skipped."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -448,7 +448,7 @@ class TestAggregateValidation:
         This tests the case where an aggregation string has a colon but the
         function is invalid, causing the loop to continue to next iteration.
         """
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -487,7 +487,7 @@ class TestAggregateValidation:
 
         This tests path 3 - an aggregation string that doesn't match either condition.
         """
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -538,7 +538,7 @@ class TestRebuildFromMarkdown:
 
     def test_rebuild_skips_index_md(self, journal_index, temp_project):
         """Rebuild skips INDEX.md file."""
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
 
         # Create INDEX.md file
         index_md = journal_path / "INDEX.md"
@@ -568,7 +568,7 @@ class TestRebuildFromMarkdown:
 
     def test_rebuild_with_progress_callback(self, journal_index, temp_project):
         """Rebuild calls progress callback."""
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
 
         # Create journal file
         journal_file = journal_path / "2026-01-17.md"
@@ -589,7 +589,7 @@ class TestRebuildFromMarkdown:
 
     def test_rebuild_handles_parse_errors(self, journal_index, temp_project):
         """Rebuild continues on parse errors and counts them."""
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
 
         # Create journal file
         journal_file = journal_path / "2026-01-17.md"
@@ -617,7 +617,7 @@ class TestRowToDict:
 
     def test_row_to_dict_handles_invalid_json(self, journal_index, temp_project):
         """_row_to_dict handles invalid JSON in caused_by field."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         # Insert entry with invalid JSON directly
@@ -718,7 +718,7 @@ class TestQueryEdgeCases:
         self, journal_index, temp_project
     ):
         """Query with invalid filter field names (SQL injection) is ignored."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -748,7 +748,7 @@ class TestQueryEdgeCases:
         self, journal_index, temp_project
     ):
         """Query with invalid order_by falls back to timestamp."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -767,7 +767,7 @@ class TestQueryEdgeCases:
 
     def test_query_filter_with_none_value_skipped(self, journal_index, temp_project):
         """Query filters with None values are skipped."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -790,7 +790,7 @@ class TestFTSQueryEscaping:
 
     def test_fts_escapes_quotes(self, journal_index, temp_project):
         """FTS query properly escapes double quotes."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -810,7 +810,7 @@ class TestFTSQueryEscaping:
 
     def test_fts_phrase_with_spaces(self, journal_index, temp_project):
         """FTS wraps multi-word queries in quotes for phrase matching."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -830,7 +830,7 @@ class TestFTSQueryEscaping:
 
     def test_fts_with_operators_not_quoted(self, journal_index, temp_project):
         """FTS queries with AND/OR/NOT are not wrapped in quotes."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -854,7 +854,7 @@ class TestSearchText:
 
     def test_search_text_delegates_to_query(self, journal_index, temp_project):
         """search_text properly delegates to query with text_search."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         entry = JournalEntry(
@@ -883,7 +883,7 @@ class TestGetActiveOperations:
 
     def test_get_active_no_matching_entries(self, journal_index, temp_project):
         """get_active_operations with no matching entries returns empty."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         # Entry with short duration and outcome
@@ -905,7 +905,7 @@ class TestGetActiveOperations:
 
     def test_get_active_finds_missing_outcome(self, journal_index, temp_project):
         """get_active_operations finds entries with tool but no outcome."""
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         # Entry with tool but no outcome (potentially incomplete)

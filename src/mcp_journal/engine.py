@@ -78,14 +78,12 @@ class JournalEngine:
         return self._index
 
     def _ensure_directories(self) -> None:
-        """Create managed directories if they don't exist."""
-        for path in [
-            self.config.get_journal_path(),
-            self.config.get_configs_path(),
-            self.config.get_logs_path(),
-            self.config.get_snapshots_path(),
-        ]:
-            path.mkdir(parents=True, exist_ok=True)
+        """Create journal directory if it doesn't exist.
+
+        Note: configs/, logs/, snapshots/ are created lazily when first used
+        to avoid leaving empty directories in projects that don't use those features.
+        """
+        self.config.get_journal_path().mkdir(parents=True, exist_ok=True)
 
     def _get_journal_file(self, date: datetime) -> Path:
         """Get path to journal file for a given date."""
@@ -389,8 +387,9 @@ class JournalEngine:
         content_hash = self._file_hash(source)
         now = utc_now()
 
-        # Check for duplicate content
+        # Check for duplicate content (lazy directory creation)
         configs_dir = self.config.get_configs_path()
+        configs_dir.mkdir(parents=True, exist_ok=True)
         for existing in configs_dir.glob(f"{source.stem}.*"):
             if existing.suffix in [".lock", ".tmp"]:
                 continue
@@ -509,11 +508,13 @@ class JournalEngine:
         now = utc_now()
         outcome_enum = LogOutcome(outcome) if outcome else LogOutcome.UNKNOWN
 
-        # Build preserved filename
+        # Build preserved filename (lazy directory creation)
+        logs_dir = self.config.get_logs_path()
+        logs_dir.mkdir(parents=True, exist_ok=True)
         timestamp_str = now.strftime("%Y-%m-%d.%H%M%S")
         cat_part = f"{category}." if category else ""
         preserved_name = f"{cat_part}{timestamp_str}.{outcome_enum.value}.log"
-        preserved_path = self.config.get_logs_path() / preserved_name
+        preserved_path = logs_dir / preserved_name
 
         # Move file to logs directory
         with file_lock(preserved_path):
@@ -566,9 +567,12 @@ class JournalEngine:
             StateSnapshot record.
         """
         now = utc_now()
+        # Lazy directory creation
+        snapshots_dir = self.config.get_snapshots_path()
+        snapshots_dir.mkdir(parents=True, exist_ok=True)
         timestamp_str = now.strftime("%Y-%m-%d.%H%M%S")
         snapshot_name = f"{name}.{timestamp_str}.json"
-        snapshot_path = self.config.get_snapshots_path() / snapshot_name
+        snapshot_path = snapshots_dir / snapshot_name
 
         snapshot = StateSnapshot(
             name=name,
@@ -869,6 +873,15 @@ class JournalEngine:
         else:
             raise ValueError(f"Unknown directory: {directory}")
 
+        # Handle non-existent directory (lazy creation means it may not exist)
+        if not target_dir.exists():
+            return {
+                "directory": directory,
+                "files_found": 0,
+                "files": [],
+                "action": "skipped_no_directory",
+            }
+
         files = sorted(target_dir.glob(pattern))
         files = [f for f in files if f.name != "INDEX.md" and not f.suffix in [".lock", ".tmp"]]
 
@@ -1116,73 +1129,76 @@ class JournalEngine:
         # Collect config archives
         if "config" in types:
             configs_dir = self.config.get_configs_path()
-            for config_file in configs_dir.glob("*"):
-                if config_file.suffix in [".lock", ".tmp", ".md"]:
-                    continue
-                # Parse timestamp from filename
-                match = re.search(r"\.(\d{4}-\d{2}-\d{2})\.(\d{6})", config_file.name)
-                if match:
-                    date_str = match.group(1)
-                    time_str = match.group(2)
-                    if date_from and date_str < date_from:
+            if configs_dir.exists():
+                for config_file in configs_dir.glob("*"):
+                    if config_file.suffix in [".lock", ".tmp", ".md"]:
                         continue
-                    if date_to and date_str > date_to:
-                        continue
+                    # Parse timestamp from filename
+                    match = re.search(r"\.(\d{4}-\d{2}-\d{2})\.(\d{6})", config_file.name)
+                    if match:
+                        date_str = match.group(1)
+                        time_str = match.group(2)
+                        if date_from and date_str < date_from:
+                            continue
+                        if date_to and date_str > date_to:
+                            continue
 
-                    ts = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H%M%S")
-                    events.append(TimelineEvent(
-                        timestamp=ts.replace(tzinfo=utc_now().tzinfo),
-                        event_type=TimelineEventType.CONFIG_ARCHIVE,
-                        summary=f"Config archived: {config_file.name}",
-                        path=str(config_file.relative_to(self.config.project_root)),
-                    ))
+                        ts = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H%M%S")
+                        events.append(TimelineEvent(
+                            timestamp=ts.replace(tzinfo=utc_now().tzinfo),
+                            event_type=TimelineEventType.CONFIG_ARCHIVE,
+                            summary=f"Config archived: {config_file.name}",
+                            path=str(config_file.relative_to(self.config.project_root)),
+                        ))
 
         # Collect log preservations
         if "log" in types:
             logs_dir = self.config.get_logs_path()
-            for log_file in logs_dir.glob("*.log"):
-                # Parse timestamp and outcome from filename
-                match = re.search(r"(\d{4}-\d{2}-\d{2})\.(\d{6})\.(\w+)\.log", log_file.name)
-                if match:
-                    date_str = match.group(1)
-                    time_str = match.group(2)
-                    outcome = match.group(3)
-                    if date_from and date_str < date_from:
-                        continue
-                    if date_to and date_str > date_to:
-                        continue
+            if logs_dir.exists():
+                for log_file in logs_dir.glob("*.log"):
+                    # Parse timestamp and outcome from filename
+                    match = re.search(r"(\d{4}-\d{2}-\d{2})\.(\d{6})\.(\w+)\.log", log_file.name)
+                    if match:
+                        date_str = match.group(1)
+                        time_str = match.group(2)
+                        outcome = match.group(3)
+                        if date_from and date_str < date_from:
+                            continue
+                        if date_to and date_str > date_to:
+                            continue
 
-                    ts = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H%M%S")
-                    events.append(TimelineEvent(
-                        timestamp=ts.replace(tzinfo=utc_now().tzinfo),
-                        event_type=TimelineEventType.LOG_PRESERVE,
-                        summary=f"Log preserved: {log_file.name}",
-                        path=str(log_file.relative_to(self.config.project_root)),
-                        outcome=outcome,
-                    ))
+                        ts = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H%M%S")
+                        events.append(TimelineEvent(
+                            timestamp=ts.replace(tzinfo=utc_now().tzinfo),
+                            event_type=TimelineEventType.LOG_PRESERVE,
+                            summary=f"Log preserved: {log_file.name}",
+                            path=str(log_file.relative_to(self.config.project_root)),
+                            outcome=outcome,
+                        ))
 
         # Collect snapshots
         if "snapshot" in types:
             snapshots_dir = self.config.get_snapshots_path()
-            for snapshot_file in snapshots_dir.glob("*.json"):
-                match = re.search(r"\.(\d{4}-\d{2}-\d{2})\.(\d{6})\.json", snapshot_file.name)
-                if match:
-                    date_str = match.group(1)
-                    time_str = match.group(2)
-                    if date_from and date_str < date_from:
-                        continue
-                    if date_to and date_str > date_to:
-                        continue
+            if snapshots_dir.exists():
+                for snapshot_file in snapshots_dir.glob("*.json"):
+                    match = re.search(r"\.(\d{4}-\d{2}-\d{2})\.(\d{6})\.json", snapshot_file.name)
+                    if match:
+                        date_str = match.group(1)
+                        time_str = match.group(2)
+                        if date_from and date_str < date_from:
+                            continue
+                        if date_to and date_str > date_to:
+                            continue
 
-                    ts = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H%M%S")
-                    # Extract name from filename
-                    name = snapshot_file.name.split(".")[0]
-                    events.append(TimelineEvent(
-                        timestamp=ts.replace(tzinfo=utc_now().tzinfo),
-                        event_type=TimelineEventType.SNAPSHOT,
-                        summary=f"Snapshot: {name}",
-                        path=str(snapshot_file.relative_to(self.config.project_root)),
-                    ))
+                        ts = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H%M%S")
+                        # Extract name from filename
+                        name = snapshot_file.name.split(".")[0]
+                        events.append(TimelineEvent(
+                            timestamp=ts.replace(tzinfo=utc_now().tzinfo),
+                            event_type=TimelineEventType.SNAPSHOT,
+                            summary=f"Snapshot: {name}",
+                            path=str(snapshot_file.relative_to(self.config.project_root)),
+                        ))
 
         # Sort by timestamp
         events.sort(key=lambda e: e.timestamp)

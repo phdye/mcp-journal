@@ -370,7 +370,7 @@ class TestEngineEdgeCases:
         engine = JournalEngine(config)
 
         # Create journal file without proper entry headers
-        journal_file = temp_project / "journal" / "2026-01-06.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-06.md"
         journal_file.write_text("Some content without entry headers")
 
         date = datetime(2026, 1, 6, tzinfo=timezone.utc)

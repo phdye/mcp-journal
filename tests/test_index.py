@@ -18,7 +18,7 @@ from mcp_journal.models import EntryType, JournalEntry
 @pytest.fixture
 def journal_index(temp_project):
     """Create a standalone journal index."""
-    journal_path = temp_project / "journal"
+    journal_path = temp_project / "a" / "journal"
     journal_path.mkdir(parents=True, exist_ok=True)
     index = JournalIndex(journal_path)
     yield index
@@ -31,7 +31,7 @@ class TestJournalIndexInit:
 
     def test_creates_db_file(self, journal_index, temp_project):
         """Index creates the database file."""
-        db_path = temp_project / "journal" / ".index.db"
+        db_path = temp_project / "a" / "journal" / ".index.db"
         assert db_path.exists()
 
     def test_creates_schema(self, journal_index):
@@ -60,7 +60,7 @@ class TestIndexEntry:
             context="Test context",
         )
 
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         journal_index.index_entry(entry, journal_file)
@@ -86,7 +86,7 @@ class TestIndexEntry:
             command="echo hello",
         )
 
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         diagnostic_fields = {
@@ -116,7 +116,7 @@ class TestIndexEntry:
             impact="None",
         )
 
-        journal_file = temp_project / "journal" / "2026-01-17.md"
+        journal_file = temp_project / "a" / "journal" / "2026-01-17.md"
         journal_file.touch()
 
         journal_index.index_entry(entry, journal_file)
@@ -410,7 +410,7 @@ class TestRebuildIndex:
             engine._index = None
 
         # Delete the index to simulate corruption/fresh start
-        db_path = temp_project / "journal" / ".index.db"
+        db_path = temp_project / "a" / "journal" / ".index.db"
         if db_path.exists():
             db_path.unlink()
 

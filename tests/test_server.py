@@ -97,11 +97,11 @@ class TestMain:
             with patch('builtins.print') as mock_print:
                 main()
 
-        # Verify directories created
-        assert (temp_project / "journal").exists()
-        assert (temp_project / "configs").exists()
-        assert (temp_project / "logs").exists()
-        assert (temp_project / "snapshots").exists()
+        # Verify directories created (all under a/)
+        assert (temp_project / "a" / "journal").exists()
+        assert (temp_project / "a" / "configs").exists()
+        assert (temp_project / "a" / "logs").exists()
+        assert (temp_project / "a" / "snapshots").exists()
 
     def test_main_without_mcp_exits(self, temp_project):
         """main exits with error when MCP not available in server mode."""

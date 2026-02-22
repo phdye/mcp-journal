@@ -89,10 +89,11 @@ class ProjectConfig:
     project_root: Path = field(default_factory=Path.cwd)
 
     # Directory structure (relative to project_root)
-    journal_dir: str = "journal"
-    configs_dir: str = "configs"
-    logs_dir: str = "logs"
-    snapshots_dir: str = "snapshots"
+    # All directories under a/ for minimal footprint
+    journal_dir: str = "a/journal"
+    configs_dir: str = "a/configs"
+    logs_dir: str = "a/logs"
+    snapshots_dir: str = "a/snapshots"
 
     # What to track
     config_patterns: list[str] = field(default_factory=lambda: ["*.toml", "*.json", "*.yaml", "*.yml"])

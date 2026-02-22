@@ -25,7 +25,7 @@ class TestValidateReferenceEdgeCases:
         This tests line 131->133: when journal file exists but entry pattern not found.
         """
         # Create a journal file
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
         journal_file = journal_path / "2026-01-15.md"
         journal_file.write_text(
             "# Journal - 2026-01-15\n\n## 2026-01-15-001\nSome entry",
@@ -40,7 +40,7 @@ class TestValidateReferenceEdgeCases:
     def test_validate_reference_entry_in_file_found(self, engine, temp_project):
         """Entry reference validation when entry is found in journal file."""
         # Create a journal file with the entry
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
         journal_file = journal_path / "2026-01-15.md"
         journal_file.write_text(
             "# Journal - 2026-01-15\n\n## 2026-01-15-001\nSome entry",
@@ -126,7 +126,7 @@ class TestUpdateIndexEdgeCases:
         engine.log_preserve(file_path=str(log_file), category="build", outcome="success")
 
         # Verify index has both entries
-        index_path = temp_project / "logs" / "INDEX.md"
+        index_path = temp_project / "a" / "logs" / "INDEX.md"
         content = index_path.read_text()
         assert content.count("|") > 5  # Multiple entries
 
@@ -139,7 +139,7 @@ class TestUpdateIndexEdgeCases:
         engine.state_snapshot(name="second", include_versions=False)
 
         # Verify index has both entries
-        index_path = temp_project / "snapshots" / "INDEX.md"
+        index_path = temp_project / "a" / "snapshots" / "INDEX.md"
         content = index_path.read_text()
         assert "first" in content
         assert "second" in content
@@ -237,7 +237,7 @@ class TestTimelineEdgeCases:
     def test_timeline_config_file_without_timestamp(self, engine, temp_project):
         """timeline handles config files without proper timestamp (line 1124->1119)."""
         # Create a config file without timestamp pattern
-        configs_path = temp_project / "configs"
+        configs_path = temp_project / "a" / "configs"
         configs_path.mkdir(exist_ok=True)
         bad_file = configs_path / "no_timestamp.conf"
         bad_file.write_text("content", encoding="utf-8")
@@ -250,7 +250,7 @@ class TestTimelineEdgeCases:
     def test_timeline_log_file_without_timestamp(self, engine, temp_project):
         """timeline handles log files without proper timestamp (line 1146->1143)."""
         # Create a log file without timestamp pattern
-        logs_path = temp_project / "logs"
+        logs_path = temp_project / "a" / "logs"
         logs_path.mkdir(exist_ok=True)
         bad_file = logs_path / "random.log"
         bad_file.write_text("log content", encoding="utf-8")
@@ -263,7 +263,7 @@ class TestTimelineEdgeCases:
     def test_timeline_snapshot_file_without_timestamp(self, engine, temp_project):
         """timeline handles snapshot files without proper timestamp (line 1169->1167)."""
         # Create a snapshot file without timestamp pattern
-        snapshots_path = temp_project / "snapshots"
+        snapshots_path = temp_project / "a" / "snapshots"
         snapshots_path.mkdir(exist_ok=True)
         bad_file = snapshots_path / "invalid.json"
         bad_file.write_text("{}", encoding="utf-8")
@@ -365,7 +365,7 @@ class TestTraceCausalityEdgeCases:
         entry = engine.journal_append(author="test", context="Entry for causality test")
 
         # Manually create a journal file with a broken causality reference
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
         journal_file = list(journal_path.glob("*.md"))[0]
         content = journal_file.read_text()
         # Add a fake caused_by reference in the markdown
@@ -514,7 +514,7 @@ class TestSessionHandoffOutcomeBranches:
         # Create an entry with a non-standard outcome
         # First we need to manually create an entry with custom outcome
         # since journal_append validates outcome values
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
         journal_path.mkdir(exist_ok=True)
 
         from datetime import datetime
@@ -549,7 +549,7 @@ Test entry with custom outcome
         {name}.{date}.{time}.{outcome}.log
         """
         # Create logs directory and a log file with custom outcome in filename
-        logs_path = temp_project / "logs"
+        logs_path = temp_project / "a" / "logs"
         logs_path.mkdir(exist_ok=True)
 
         # Create a log file with standard outcome (so timeline finds it)
@@ -581,7 +581,7 @@ class TestTraceCausalityMissingCause:
         # by editing the journal file
         # Note: The pattern is **Caused-By**: (with hyphen)
         # It must be added AFTER **Type**: and BEFORE ### Context
-        journal_path = temp_project / "journal"
+        journal_path = temp_project / "a" / "journal"
         journal_files = list(journal_path.glob("*.md"))
         if journal_files:
             journal_file = journal_files[0]

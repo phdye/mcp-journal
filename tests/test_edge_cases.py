@@ -50,7 +50,7 @@ class TestJournalAppendEdgeCases:
         )
 
         # Verify content was written
-        journal_file = temp_project / "journal" / f"{entry.entry_id[:10]}.md"
+        journal_file = temp_project / "a" / "journal" / f"{entry.entry_id[:10]}.md"
         content = journal_file.read_text()
         assert long_text in content
 
@@ -71,7 +71,7 @@ class TestJournalAppendEdgeCases:
             next_steps="次のステップ: 継続 ✅",
         )
 
-        journal_file = temp_project / "journal" / f"{entry.entry_id[:10]}.md"
+        journal_file = temp_project / "a" / "journal" / f"{entry.entry_id[:10]}.md"
         content = journal_file.read_text(encoding="utf-8")
         assert "背景" in content
         assert "🔍" in content
@@ -89,7 +89,7 @@ class TestJournalAppendEdgeCases:
             next_steps="Table: | col | col |\n|---|---|",
         )
 
-        journal_file = temp_project / "journal" / f"{entry.entry_id[:10]}.md"
+        journal_file = temp_project / "a" / "journal" / f"{entry.entry_id[:10]}.md"
         content = journal_file.read_text()
         assert "`inline`" in content
         assert "[text](url)" in content
@@ -102,7 +102,7 @@ class TestJournalAppendEdgeCases:
             context=multiline,
         )
 
-        journal_file = temp_project / "journal" / f"{entry.entry_id[:10]}.md"
+        journal_file = temp_project / "a" / "journal" / f"{entry.entry_id[:10]}.md"
         content = journal_file.read_text()
         assert "Line 1\nLine 2\nLine 3" in content
 

@@ -38,7 +38,7 @@ class TestJournalAppend:
         assert entry.entry_type == EntryType.ENTRY
 
         # Check file was created
-        journal_dir = temp_project / "journal"
+        journal_dir = temp_project / "a" / "journal"
         journal_files = list(journal_dir.glob("*.md"))
         assert len(journal_files) == 1
 
@@ -68,7 +68,7 @@ class TestJournalAppend:
             next_steps="The next steps",
         )
 
-        journal_file = temp_project / "journal" / f"{entry.entry_id[:10]}.md"
+        journal_file = temp_project / "a" / "journal" / f"{entry.entry_id[:10]}.md"
         content = journal_file.read_text()
 
         assert "The context" in content
@@ -169,7 +169,7 @@ class TestConfigArchive:
 
         engine.config_archive(file_path=str(config_file), reason="Testing")
 
-        index_file = temp_project / "configs" / "INDEX.md"
+        index_file = temp_project / "a" / "configs" / "INDEX.md"
         assert index_file.exists()
         content = index_file.read_text()
         assert "Testing" in content
@@ -204,7 +204,7 @@ class TestLogPreserve:
 
         engine.log_preserve(file_path=str(log_file), outcome="failure")
 
-        index_file = temp_project / "logs" / "INDEX.md"
+        index_file = temp_project / "a" / "logs" / "INDEX.md"
         assert index_file.exists()
         content = index_file.read_text()
         assert "failure" in content
@@ -247,7 +247,7 @@ class TestStateSnapshot:
         """INDEX.md is updated with snapshot record."""
         engine.state_snapshot(name="indexed", include_env=False, include_versions=False)
 
-        index_file = temp_project / "snapshots" / "INDEX.md"
+        index_file = temp_project / "a" / "snapshots" / "INDEX.md"
         assert index_file.exists()
         content = index_file.read_text()
         assert "indexed" in content
@@ -283,7 +283,7 @@ class TestIndexRebuild:
     def test_dry_run_no_write(self, engine, temp_project):
         """Dry run doesn't write to index."""
         # Create some config files manually
-        configs_dir = temp_project / "configs"
+        configs_dir = temp_project / "a" / "configs"
         configs_dir.mkdir(exist_ok=True)
         (configs_dir / "test.2024-01-01.toml").write_text("content")
 
@@ -298,7 +298,7 @@ class TestIndexRebuild:
 
     def test_rebuild_creates_index(self, engine, temp_project):
         """Rebuild creates INDEX.md from files."""
-        configs_dir = temp_project / "configs"
+        configs_dir = temp_project / "a" / "configs"
         configs_dir.mkdir(exist_ok=True)
         (configs_dir / "a.2024-01-01.toml").write_text("a")
         (configs_dir / "b.2024-01-02.toml").write_text("b")

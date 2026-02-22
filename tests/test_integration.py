@@ -462,7 +462,7 @@ class TestIndexIntegrity:
             time.sleep(1.1)  # Ensure different timestamps
 
         # Check index
-        index_file = temp_project / "configs" / "INDEX.md"
+        index_file = temp_project / "a" / "configs" / "INDEX.md"
         assert index_file.exists()
         content = index_file.read_text()
 
@@ -480,7 +480,7 @@ class TestIndexIntegrity:
             time.sleep(1.1)
 
         # Delete and rebuild index
-        index_file = temp_project / "configs" / "INDEX.md"
+        index_file = temp_project / "a" / "configs" / "INDEX.md"
         index_file.unlink()
 
         result = engine.index_rebuild(directory="configs")
